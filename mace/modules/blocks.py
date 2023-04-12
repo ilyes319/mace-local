@@ -29,10 +29,7 @@ class LinearNodeEmbeddingBlock(torch.nn.Module):
         super().__init__()
         self.linear = o3.Linear(irreps_in=irreps_in, irreps_out=irreps_out)
 
-    def forward(
-        self,
-        node_attrs: torch.Tensor,
-    ) -> torch.Tensor:  # [n_nodes, irreps]
+    def forward(self, node_attrs: torch.Tensor,) -> torch.Tensor:  # [n_nodes, irreps]
         return self.linear(node_attrs)
 
 
@@ -42,7 +39,12 @@ class LinearReadoutBlock(torch.nn.Module):
         super().__init__()
         self.linear = o3.Linear(irreps_in=irreps_in, irreps_out=o3.Irreps("0e"))
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
+    def forward(
+        self,
+        x: torch.Tensor,
+        y: Optional[torch.Tensor] = None,
+        z: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
         return self.linear(x)  # [n_nodes, 1]
 
 
@@ -59,9 +61,56 @@ class NonLinearReadoutBlock(torch.nn.Module):
             irreps_in=self.hidden_irreps, irreps_out=o3.Irreps("0e")
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
+    def forward(
+        self,
+        x: torch.Tensor,
+        y: Optional[torch.Tensor] = None,
+        z: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
         x = self.non_linearity(self.linear_1(x))
         return self.linear_2(x)  # [n_nodes, 1]
+
+
+@compile_mode("script")
+class PermutationReadoutBlock(torch.nn.Module):
+    def __init__(
+        self,
+        irreps_in: o3.Irreps,
+        irreps_in_readout: o3.Irreps,
+        mid_irreps: o3.Irreps,
+        MLP_irreps: o3.Irreps,
+        MLP_irreps_readout: o3.Irreps,
+    ):
+        super().__init__()
+        self.hidden_irreps = MLP_irreps
+        self.linear = o3.Linear(irreps_in=irreps_in, irreps_out=mid_irreps)
+        self.tp = o3.FullyConnectedTensorProduct(mid_irreps, mid_irreps, MLP_irreps)
+        self.mlp = nn.FullyConnectedNet(
+            [MLP_irreps.num_irreps] + [32, 64, 128, 1], torch.nn.functional.silu,
+        )
+        self.simple_readout = NonLinearReadoutBlock(
+            irreps_in=irreps_in_readout,
+            MLP_irreps=MLP_irreps_readout,
+            gate=torch.nn.functional.silu,
+        )
+
+    def forward(
+        self, x: torch.Tensor, y: torch.Tensor, triplet_index: torch.Tensor
+    ) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
+        num_nodes = x.shape[0]
+        receiver, bond_1, bond_2 = (
+            triplet_index[:, 0],
+            triplet_index[:, 3],
+            triplet_index[:, 4],
+        )
+        y = self.linear(y)
+        print("y", y.shape)
+        y = self.tp(y[bond_1], y[bond_2])  # [n_triplets, irreps]
+        y = self.mlp(y)  # [n_triplets, 1]
+        y = scatter_sum(y, receiver, dim=0, dim_size=num_nodes)  # [n_nodes, irreps]
+        print("x", x.shape)
+        x = self.simple_readout(x, None, None)
+        return x + y  # [n_nodes, 1]
 
 
 @compile_mode("script")
@@ -150,8 +199,7 @@ class RadialEmbeddingBlock(torch.nn.Module):
         self.out_dim = num_bessel
 
     def forward(
-        self,
-        edge_lengths: torch.Tensor,  # [n_edges, 1]
+        self, edge_lengths: torch.Tensor,  # [n_edges, 1]
     ):
         bessel = self.bessel_fn(edge_lengths)  # [n_edges, n_basis]
         cutoff = self.cutoff_fn(edge_lengths)  # [n_edges, 1]
@@ -179,10 +227,7 @@ class EquivariantProductBasisBlock(torch.nn.Module):
         )
         # Update linear
         self.linear = o3.Linear(
-            target_irreps,
-            target_irreps,
-            internal_weights=True,
-            shared_weights=True,
+            target_irreps, target_irreps, internal_weights=True, shared_weights=True,
         )
 
     def forward(
@@ -482,10 +527,9 @@ class RealAgnosticInteractionBlock(InteractionBlock):
         )
         # TensorProduct
         irreps_mid, instructions = tp_out_irreps_with_instructions(
-            self.node_feats_irreps,
-            self.edge_attrs_irreps,
-            self.target_irreps,
+            self.node_feats_irreps, self.edge_attrs_irreps, self.target_irreps,
         )
+        self.irreps_mid = irreps_mid.simplify()
         self.conv_tp = o3.TensorProduct(
             self.node_feats_irreps,
             self.edge_attrs_irreps,
@@ -522,7 +566,7 @@ class RealAgnosticInteractionBlock(InteractionBlock):
         edge_attrs: torch.Tensor,
         edge_feats: torch.Tensor,
         edge_index: torch.Tensor,
-    ) -> Tuple[torch.Tensor, None]:
+    ) -> Tuple[torch.Tensor, None, torch.Tensor]:
         sender = edge_index[0]
         receiver = edge_index[1]
         num_nodes = node_feats.shape[0]
@@ -539,6 +583,7 @@ class RealAgnosticInteractionBlock(InteractionBlock):
         return (
             self.reshape(message),
             None,
+            mji / self.avg_num_neighbors,
         )  # [n_nodes, channels, (lmax + 1)**2]
 
 
@@ -554,10 +599,9 @@ class RealAgnosticResidualInteractionBlock(InteractionBlock):
         )
         # TensorProduct
         irreps_mid, instructions = tp_out_irreps_with_instructions(
-            self.node_feats_irreps,
-            self.edge_attrs_irreps,
-            self.target_irreps,
+            self.node_feats_irreps, self.edge_attrs_irreps, self.target_irreps,
         )
+        self.irreps_mid = irreps_mid.simplify()
         self.conv_tp = o3.TensorProduct(
             self.node_feats_irreps,
             self.edge_attrs_irreps,
@@ -594,7 +638,7 @@ class RealAgnosticResidualInteractionBlock(InteractionBlock):
         edge_attrs: torch.Tensor,
         edge_feats: torch.Tensor,
         edge_index: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         sender = edge_index[0]
         receiver = edge_index[1]
         num_nodes = node_feats.shape[0]
@@ -611,6 +655,7 @@ class RealAgnosticResidualInteractionBlock(InteractionBlock):
         return (
             self.reshape(message),
             sc,
+            mji / self.avg_num_neighbors,
         )  # [n_nodes, channels, (lmax + 1)**2]
 
 

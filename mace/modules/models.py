@@ -23,6 +23,7 @@ from .blocks import (
     LinearReadoutBlock,
     NonLinearDipoleReadoutBlock,
     NonLinearReadoutBlock,
+    PermutationReadoutBlock,
     RadialEmbeddingBlock,
     ScaleShiftBlock,
 )
@@ -55,6 +56,7 @@ class MACE(torch.nn.Module):
         correlation: int,
         gate: Optional[Callable],
         radial_MLP: Optional[List[int]] = None,
+        equivariant_readout: bool = False,
     ):
         super().__init__()
         self.register_buffer(
@@ -64,6 +66,7 @@ class MACE(torch.nn.Module):
         self.register_buffer(
             "num_interactions", torch.tensor(num_interactions, dtype=torch.int64)
         )
+        self.equivariant_readout = equivariant_readout
         # Embedding
         node_attr_irreps = o3.Irreps([(num_elements, (0, 1))])
         node_feats_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
@@ -145,6 +148,16 @@ class MACE(torch.nn.Module):
             )
             self.products.append(prod)
             if i == num_interactions - 2:
+                if equivariant_readout:
+                    self.readouts.append(
+                        PermutationReadoutBlock(
+                            irreps_in=inter.irreps_mid,
+                            irreps_in_readout=hidden_irreps_out,
+                            mid_irreps=interaction_irreps,
+                            MLP_irreps=MLP_irreps,
+                            MLP_irreps_readout=MLP_irreps,
+                        )
+                    )
                 self.readouts.append(
                     NonLinearReadoutBlock(hidden_irreps_out, MLP_irreps, gate)
                 )
@@ -205,7 +218,7 @@ class MACE(torch.nn.Module):
         for interaction, product, readout in zip(
             self.interactions, self.products, self.readouts
         ):
-            node_feats, sc = interaction(
+            node_feats, sc, mji = interaction(
                 node_attrs=data["node_attrs"],
                 node_feats=node_feats,
                 edge_attrs=edge_attrs,
@@ -213,11 +226,9 @@ class MACE(torch.nn.Module):
                 edge_index=data["edge_index"],
             )
             node_feats = product(
-                node_feats=node_feats,
-                sc=sc,
-                node_attrs=data["node_attrs"],
+                node_feats=node_feats, sc=sc, node_attrs=data["node_attrs"],
             )
-            node_energies = readout(node_feats).squeeze(-1)  # [n_nodes, ]
+            node_energies = readout(node_feats, mji, data["triplets"]).squeeze(-1)
             energy = scatter_sum(
                 src=node_energies, index=data["batch"], dim=-1, dim_size=num_graphs
             )  # [n_graphs,]
@@ -256,10 +267,7 @@ class MACE(torch.nn.Module):
 @compile_mode("script")
 class ScaleShiftMACE(MACE):
     def __init__(
-        self,
-        atomic_inter_scale: float,
-        atomic_inter_shift: float,
-        **kwargs,
+        self, atomic_inter_scale: float, atomic_inter_shift: float, **kwargs,
     ):
         super().__init__(**kwargs)
         self.scale_shift = ScaleShiftBlock(
@@ -319,7 +327,7 @@ class ScaleShiftMACE(MACE):
         for interaction, product, readout in zip(
             self.interactions, self.products, self.readouts
         ):
-            node_feats, sc = interaction(
+            node_feats, sc, mji = interaction(
                 node_attrs=data["node_attrs"],
                 node_feats=node_feats,
                 edge_attrs=edge_attrs,
@@ -329,7 +337,8 @@ class ScaleShiftMACE(MACE):
             node_feats = product(
                 node_feats=node_feats, sc=sc, node_attrs=data["node_attrs"]
             )
-            node_es_list.append(readout(node_feats).squeeze(-1))  # {[n_nodes, ], }
+            node_energies = readout(node_feats, mji, data["triplets"]).squeeze(-1)
+            node_es_list.append(node_energies)  # {[n_nodes, ], }
 
         # Sum over interactions
         node_inter_es = torch.sum(
@@ -494,10 +503,7 @@ class BOTNet(torch.nn.Module):
 
 class ScaleShiftBOTNet(BOTNet):
     def __init__(
-        self,
-        atomic_inter_scale: float,
-        atomic_inter_shift: float,
-        **kwargs,
+        self, atomic_inter_scale: float, atomic_inter_shift: float, **kwargs,
     ):
         super().__init__(**kwargs)
         self.scale_shift = ScaleShiftBlock(
