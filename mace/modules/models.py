@@ -51,7 +51,7 @@ class MACE(torch.nn.Module):
         num_elements: int,
         hidden_irreps: o3.Irreps,
         MLP_irreps: o3.Irreps,
-        perm_readout_irreps: o3.Irreps,
+        equivariant_readout_irreps: o3.Irreps,
         atomic_energies: np.ndarray,
         avg_num_neighbors: float,
         atomic_numbers: List[int],
@@ -155,7 +155,7 @@ class MACE(torch.nn.Module):
                         PermutationReadoutBlock(
                             irreps_in=inter.irreps_mid,
                             irreps_in_readout=hidden_irreps_out,
-                            mid_irreps=perm_readout_irreps,
+                            mid_irreps=equivariant_readout_irreps,
                             MLP_irreps=MLP_irreps,
                             MLP_irreps_readout=MLP_irreps,
                         )
@@ -235,9 +235,7 @@ class MACE(torch.nn.Module):
                 edge_index=data["edge_index"],
             )
             node_feats = product(
-                node_feats=node_feats,
-                sc=sc,
-                node_attrs=data["node_attrs"],
+                node_feats=node_feats, sc=sc, node_attrs=data["node_attrs"],
             )
             node_energies = readout(node_feats, mji, data["edge_triplets"]).squeeze(-1)
             energy = scatter_sum(
@@ -277,10 +275,7 @@ class MACE(torch.nn.Module):
 @compile_mode("script")
 class ScaleShiftMACE(MACE):
     def __init__(
-        self,
-        atomic_inter_scale: float,
-        atomic_inter_shift: float,
-        **kwargs,
+        self, atomic_inter_scale: float, atomic_inter_shift: float, **kwargs,
     ):
         super().__init__(**kwargs)
         self.scale_shift = ScaleShiftBlock(
@@ -522,10 +517,7 @@ class BOTNet(torch.nn.Module):
 
 class ScaleShiftBOTNet(BOTNet):
     def __init__(
-        self,
-        atomic_inter_scale: float,
-        atomic_inter_shift: float,
-        **kwargs,
+        self, atomic_inter_scale: float, atomic_inter_shift: float, **kwargs,
     ):
         super().__init__(**kwargs)
         self.scale_shift = ScaleShiftBlock(

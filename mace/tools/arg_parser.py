@@ -146,7 +146,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         default=False,
     )
     parser.add_argument(
-        "--perm_readout_irreps",
+        "--equivariant_readout_irreps",
         help="irreps for permutation equivariant readout",
         type=str,
         default="16x0e + 16x1o",
