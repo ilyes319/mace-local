@@ -116,7 +116,6 @@ class PermutationReadoutBlock(torch.nn.Module):
         )
         y = self.linear(y)
         y = self.tp(y[bond_1], y[bond_2])  # [n_triplets, irreps]
-        print(y.shape)
         y = self.linear_out(y)
         y = self.mlp(y)  # [n_triplets, 1]
         y = scatter_sum(y, receiver, dim=0, dim_size=num_nodes)  # [n_nodes, irreps]
