@@ -84,7 +84,18 @@ class PermutationReadoutBlock(torch.nn.Module):
         super().__init__()
         self.hidden_irreps = MLP_irreps
         self.linear = o3.Linear(irreps_in=irreps_in, irreps_out=mid_irreps)
-        self.tp = o3.FullyConnectedTensorProduct(mid_irreps, mid_irreps, MLP_irreps)
+        irreps_mid, instructions = tp_out_irreps_with_instructions(
+            mid_irreps, mid_irreps, MLP_irreps
+        )
+        self.tp = o3.TensorProduct(
+            mid_irreps,
+            mid_irreps,
+            irreps_mid,
+            instructions=instructions,
+            shared_weights=True,
+            internal_weights=True,
+        )
+        self.linear_out = o3.Linear(irreps_in=irreps_mid, irreps_out=MLP_irreps)
         self.mlp = nn.FullyConnectedNet(
             [MLP_irreps.num_irreps] + [32, 64, 128, 1], torch.nn.functional.silu,
         )
@@ -99,16 +110,15 @@ class PermutationReadoutBlock(torch.nn.Module):
     ) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
         num_nodes = x.shape[0]
         receiver, bond_1, bond_2 = (
-            triplet_index[:, 0],
-            triplet_index[:, 3],
-            triplet_index[:, 4],
+            triplet_index[0, :],
+            triplet_index[1, :],
+            triplet_index[2, :],
         )
         y = self.linear(y)
-        print("y", y.shape)
         y = self.tp(y[bond_1], y[bond_2])  # [n_triplets, irreps]
+        y = self.linear_out(y)
         y = self.mlp(y)  # [n_triplets, 1]
         y = scatter_sum(y, receiver, dim=0, dim_size=num_nodes)  # [n_nodes, irreps]
-        print("x", x.shape)
         x = self.simple_readout(x, None, None)
         return x + y  # [n_nodes, 1]
 

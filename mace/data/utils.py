@@ -4,7 +4,6 @@
 # This program is distributed under the MIT License (see MIT.md)
 ###########################################################################################
 
-from itertools import combinations
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -272,30 +271,4 @@ def compute_average_E0s(
         for i, z in enumerate(z_table.zs):
             atomic_energies_dict[z] = 0.0
     return atomic_energies_dict
-
-
-def construct_bond_env(bonds_index):
-    unique, index = np.unique(bonds_index[0], return_index=True)
-    env_indices = []
-    env_indices_unique = []
-    max_index = 0
-    for i in range(1, len(index)):
-        receiver = bonds_index[1][index[i - 1] : index[i]]
-        receiver_unique = np.arange(0, len(receiver)) + max_index
-        max_index = max(receiver_unique)
-        if len(receiver) <= 1:
-            continue
-        receivers = np.array(list((combinations(receiver, 2))))
-        receivers_unique = np.array(list((combinations(receiver_unique, 2))))
-        env_index = np.concatenate(
-            (unique[i - 1] * np.ones((receivers.shape[0], 1), dtype=int), receivers),
-            axis=1,
-        )
-        env_indices.append(env_index)
-        env_indices_unique.append(receivers_unique)
-        outs = (
-            np.concatenate(env_indices, axis=0),
-            np.concatenate(env_indices_unique, axis=0),
-        )
-    return np.concatenate(outs, axis=1)
 

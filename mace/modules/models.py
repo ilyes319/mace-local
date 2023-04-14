@@ -30,6 +30,7 @@ from .blocks import (
 from .utils import (
     compute_fixed_charge_dipole,
     compute_forces,
+    get_edge_triplets,
     get_edge_vectors_and_lengths,
     get_outputs,
     get_symmetric_displacement,
@@ -176,6 +177,8 @@ class MACE(torch.nn.Module):
         # Setup
         data["node_attrs"].requires_grad_(True)
         data["positions"].requires_grad_(True)
+        data["edge_triplets"] = torch.zeros_like(data["edge_index"])
+        num_nodes = data["positions"].shape[0]
         num_graphs = data["ptr"].numel() - 1
         displacement = torch.zeros(
             (num_graphs, 3, 3),
@@ -209,6 +212,10 @@ class MACE(torch.nn.Module):
             edge_index=data["edge_index"],
             shifts=data["shifts"],
         )
+        if self.equivariant_readout:
+            data["edge_triplets"] = get_edge_triplets(
+                edge_index=data["edge_index"], num_nodes=num_nodes
+            )
         edge_attrs = self.spherical_harmonics(vectors)
         edge_feats = self.radial_embedding(lengths)
 
@@ -228,7 +235,7 @@ class MACE(torch.nn.Module):
             node_feats = product(
                 node_feats=node_feats, sc=sc, node_attrs=data["node_attrs"],
             )
-            node_energies = readout(node_feats, mji, data["triplets"]).squeeze(-1)
+            node_energies = readout(node_feats, mji, data["edge_triplets"]).squeeze(-1)
             energy = scatter_sum(
                 src=node_energies, index=data["batch"], dim=-1, dim_size=num_graphs
             )  # [n_graphs,]
@@ -287,6 +294,8 @@ class ScaleShiftMACE(MACE):
         data["positions"].requires_grad_(True)
         data["node_attrs"].requires_grad_(True)
         num_graphs = data["ptr"].numel() - 1
+        data["edge_triplets"] = torch.zeros_like(data["edge_index"])
+        num_nodes = data["positions"].shape[0]
         displacement = torch.zeros(
             (num_graphs, 3, 3),
             dtype=data["positions"].dtype,
@@ -319,6 +328,10 @@ class ScaleShiftMACE(MACE):
             edge_index=data["edge_index"],
             shifts=data["shifts"],
         )
+        if self.equivariant_readout:
+            data["edge_triplets"] = get_edge_triplets(
+                edge_index=data["edge_index"], num_nodes=num_nodes
+            )
         edge_attrs = self.spherical_harmonics(vectors)
         edge_feats = self.radial_embedding(lengths)
 
@@ -337,7 +350,7 @@ class ScaleShiftMACE(MACE):
             node_feats = product(
                 node_feats=node_feats, sc=sc, node_attrs=data["node_attrs"]
             )
-            node_energies = readout(node_feats, mji, data["triplets"]).squeeze(-1)
+            node_energies = readout(node_feats, mji, data["edge_triplets"]).squeeze(-1)
             node_es_list.append(node_energies)  # {[n_nodes, ], }
 
         # Sum over interactions

@@ -17,7 +17,7 @@ from mace.tools import (
 )
 
 from .neighborhood import get_neighborhood
-from .utils import Configuration, construct_bond_env
+from .utils import Configuration
 
 
 class AtomicData(torch_geometric.data.Data):
@@ -50,7 +50,6 @@ class AtomicData(torch_geometric.data.Data):
         positions: torch.Tensor,  # [n_nodes, 3]
         shifts: torch.Tensor,  # [n_edges, 3],
         unit_shifts: torch.Tensor,  # [n_edges, 3]
-        triplets: Optional[torch.Tensor],  # [n_triplets, 3]
         cell: Optional[torch.Tensor],  # [3,3]
         weight: Optional[torch.Tensor],  # [,]
         energy_weight: Optional[torch.Tensor],  # [,]
@@ -72,7 +71,6 @@ class AtomicData(torch_geometric.data.Data):
         assert shifts.shape[1] == 3
         assert unit_shifts.shape[1] == 3
         assert len(node_attrs.shape) == 2
-        assert triplets is None or triplets.shape[1] == 5
         assert weight is None or len(weight.shape) == 0
         assert energy_weight is None or len(energy_weight.shape) == 0
         assert forces_weight is None or len(forces_weight.shape) == 0
@@ -90,7 +88,6 @@ class AtomicData(torch_geometric.data.Data):
             "num_nodes": num_nodes,
             "edge_index": edge_index,
             "positions": positions,
-            "triplets": triplets,
             "shifts": shifts,
             "unit_shifts": unit_shifts,
             "cell": cell,
@@ -111,19 +108,10 @@ class AtomicData(torch_geometric.data.Data):
 
     @classmethod
     def from_config(
-        cls,
-        config: Configuration,
-        z_table: AtomicNumberTable,
-        cutoff: float,
-        compute_triplets: bool = False,
+        cls, config: Configuration, z_table: AtomicNumberTable, cutoff: float,
     ) -> "AtomicData":
         edge_index, shifts, unit_shifts = get_neighborhood(
             positions=config.positions, cutoff=cutoff, pbc=config.pbc, cell=config.cell
-        )
-        triplets = (
-            torch.tensor(construct_bond_env(edge_index), dtype=torch.long)
-            if compute_triplets
-            else None
         )
         indices = atomic_numbers_to_indices(config.atomic_numbers, z_table=z_table)
         one_hot = to_one_hot(
@@ -204,7 +192,6 @@ class AtomicData(torch_geometric.data.Data):
 
         return cls(
             edge_index=torch.tensor(edge_index, dtype=torch.long),
-            triplets=triplets,
             positions=torch.tensor(config.positions, dtype=torch.get_default_dtype()),
             shifts=torch.tensor(shifts, dtype=torch.get_default_dtype()),
             unit_shifts=torch.tensor(unit_shifts, dtype=torch.get_default_dtype()),
