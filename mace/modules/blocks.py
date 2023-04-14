@@ -123,7 +123,9 @@ class PermutationReadoutBlock(torch.nn.Module):
         y = self.linear_out(y)
         y = self.mlp(y)  # [n_triplets, 1]
         y = scatter_sum(y, receiver, dim=0, dim_size=num_nodes)  # [n_nodes, irreps]
+        print("y", y)
         x = self.simple_readout(x, None, None)
+        print("x", x)
         return x + y  # [n_nodes, 1]
 
 
@@ -603,7 +605,7 @@ class RealAgnosticInteractionBlock(InteractionBlock):
         return (
             self.reshape(message),
             None,
-            mji / self.avg_num_neighbors,
+            mji,
         )  # [n_nodes, channels, (lmax + 1)**2]
 
 
@@ -677,7 +679,7 @@ class RealAgnosticResidualInteractionBlock(InteractionBlock):
         return (
             self.reshape(message),
             sc,
-            mji / self.avg_num_neighbors,
+            mji,
         )  # [n_nodes, channels, (lmax + 1)**2]
 
 

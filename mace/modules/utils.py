@@ -276,7 +276,5 @@ def get_edge_triplets(
     # Edge indices (k-j, j->i) for triplets.
     idx_kj = adj_t_row._values()[mask]
     idx_ji = adj_t_row._indices()[0, :][mask]
-    print("idx_kj", idx_kj - 1)
-    print("idx_ji", idx_ji)
     out = torch.stack([idx_j, idx_kj - 1, idx_ji], dim=0)
     return out

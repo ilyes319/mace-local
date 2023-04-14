@@ -159,9 +159,10 @@ class MACE(torch.nn.Module):
                             MLP_irreps_readout=MLP_irreps,
                         )
                     )
-                self.readouts.append(
-                    NonLinearReadoutBlock(hidden_irreps_out, MLP_irreps, gate)
-                )
+                else:
+                    self.readouts.append(
+                        NonLinearReadoutBlock(hidden_irreps_out, MLP_irreps, gate)
+                    )
             else:
                 self.readouts.append(LinearReadoutBlock(hidden_irreps))
 
@@ -246,7 +247,6 @@ class MACE(torch.nn.Module):
 
         # Sum over energy contributions
         contributions = torch.stack(energies, dim=-1)
-        print("contributions", contributions.shape)
         total_energy = torch.sum(contributions, dim=-1)  # [n_graphs, ]
         node_energy_contributions = torch.stack(node_energies_list, dim=-1)
         node_energy = torch.sum(node_energy_contributions, dim=-1)  # [n_nodes, ]
