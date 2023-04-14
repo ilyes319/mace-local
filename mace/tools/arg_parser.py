@@ -140,6 +140,12 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         default="[64, 64, 64]",
     )
     parser.add_argument(
+        "--equivariant_readout",
+        help="use permutation equivariant readout",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--hidden_irreps",
         help="irreps for hidden node states",
         type=str,
@@ -147,16 +153,10 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
     )
     # add option to specify irreps by channel number and max L
     parser.add_argument(
-        "--num_channels",
-        help="number of embedding channels",
-        type=int,
-        default=None,
+        "--num_channels", help="number of embedding channels", type=int, default=None,
     )
     parser.add_argument(
-        "--max_L",
-        help="max L equivariance of the message",
-        type=int,
-        default=None,
+        "--max_L", help="max L equivariance of the message", type=int, default=None,
     )
     parser.add_argument(
         "--gate",
@@ -216,9 +216,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         required=False,
     )
     parser.add_argument(
-        "--test_file",
-        help="Test set xyz file",
-        type=str,
+        "--test_file", help="Test set xyz file", type=str,
     )
     parser.add_argument(
         "--E0s",
@@ -447,22 +445,13 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         default=False,
     )
     parser.add_argument(
-        "--wandb_project",
-        help="Weights and Biases project name",
-        type=str,
-        default="",
+        "--wandb_project", help="Weights and Biases project name", type=str, default="",
     )
     parser.add_argument(
-        "--wandb_entity",
-        help="Weights and Biases entity name",
-        type=str,
-        default="",
+        "--wandb_entity", help="Weights and Biases entity name", type=str, default="",
     )
     parser.add_argument(
-        "--wandb_name",
-        help="Weights and Biases experiment name",
-        type=str,
-        default="",
+        "--wandb_name", help="Weights and Biases experiment name", type=str, default="",
     )
     parser.add_argument(
         "--wandb_log_hypers",

@@ -19,7 +19,11 @@ from torch_ema import ExponentialMovingAverage
 import mace
 from mace import data, modules, tools
 from mace.tools import torch_geometric
-from mace.tools.scripts_utils import create_error_table, get_dataset_from_xyz, LRScheduler
+from mace.tools.scripts_utils import (
+    create_error_table,
+    get_dataset_from_xyz,
+    LRScheduler,
+)
 
 
 def main() -> None:
@@ -174,9 +178,7 @@ def main() -> None:
         assert (
             dipole_only is True
         ), "dipole loss can only be used with AtomicDipolesMACE model"
-        loss_fn = modules.DipoleSingleLoss(
-            dipole_weight=args.dipole_weight,
-        )
+        loss_fn = modules.DipoleSingleLoss(dipole_weight=args.dipole_weight,)
     elif args.loss == "energy_forces_dipole":
         assert dipole_only is False and compute_dipole is True
         loss_fn = modules.WeightedEnergyForcesDipoleLoss(
@@ -258,6 +260,7 @@ def main() -> None:
                 "RealAgnosticInteractionBlock"
             ],
             MLP_irreps=o3.Irreps(args.MLP_irreps),
+            equivariant_readout=args.equivariant_readout,
             atomic_inter_scale=std,
             atomic_inter_shift=0.0,
             radial_MLP=ast.literal_eval(args.radial_MLP),
@@ -270,6 +273,7 @@ def main() -> None:
             gate=modules.gate_dict[args.gate],
             interaction_cls_first=modules.interaction_classes[args.interaction_first],
             MLP_irreps=o3.Irreps(args.MLP_irreps),
+            equivariant_readout=args.equivariant_readout,
             atomic_inter_scale=std,
             atomic_inter_shift=mean,
             radial_MLP=ast.literal_eval(args.radial_MLP),
