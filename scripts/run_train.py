@@ -178,9 +178,7 @@ def main() -> None:
         assert (
             dipole_only is True
         ), "dipole loss can only be used with AtomicDipolesMACE model"
-        loss_fn = modules.DipoleSingleLoss(
-            dipole_weight=args.dipole_weight,
-        )
+        loss_fn = modules.DipoleSingleLoss(dipole_weight=args.dipole_weight,)
     elif args.loss == "energy_forces_dipole":
         assert dipole_only is False and compute_dipole is True
         loss_fn = modules.WeightedEnergyForcesDipoleLoss(
@@ -263,6 +261,7 @@ def main() -> None:
             ],
             MLP_irreps=o3.Irreps(args.MLP_irreps),
             equivariant_readout=args.equivariant_readout,
+            perm_readout_irreps=args.perm_readout_irreps,
             atomic_inter_scale=std,
             atomic_inter_shift=0.0,
             radial_MLP=ast.literal_eval(args.radial_MLP),
@@ -276,6 +275,7 @@ def main() -> None:
             interaction_cls_first=modules.interaction_classes[args.interaction_first],
             MLP_irreps=o3.Irreps(args.MLP_irreps),
             equivariant_readout=args.equivariant_readout,
+            perm_readout_irreps=args.perm_readout_irreps,
             atomic_inter_scale=std,
             atomic_inter_shift=mean,
             radial_MLP=ast.literal_eval(args.radial_MLP),

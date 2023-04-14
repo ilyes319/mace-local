@@ -51,6 +51,7 @@ class MACE(torch.nn.Module):
         num_elements: int,
         hidden_irreps: o3.Irreps,
         MLP_irreps: o3.Irreps,
+        perm_readout_irreps: o3.Irreps,
         atomic_energies: np.ndarray,
         avg_num_neighbors: float,
         atomic_numbers: List[int],
@@ -154,7 +155,7 @@ class MACE(torch.nn.Module):
                         PermutationReadoutBlock(
                             irreps_in=inter.irreps_mid,
                             irreps_in_readout=hidden_irreps_out,
-                            mid_irreps=interaction_irreps,
+                            mid_irreps=perm_readout_irreps,
                             MLP_irreps=MLP_irreps,
                             MLP_irreps_readout=MLP_irreps,
                         )
