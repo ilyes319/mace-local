@@ -108,7 +108,10 @@ class AtomicData(torch_geometric.data.Data):
 
     @classmethod
     def from_config(
-        cls, config: Configuration, z_table: AtomicNumberTable, cutoff: float,
+        cls,
+        config: Configuration,
+        z_table: AtomicNumberTable,
+        cutoff: float,
     ) -> "AtomicData":
         edge_index, shifts, unit_shifts = get_neighborhood(
             positions=config.positions, cutoff=cutoff, pbc=config.pbc, cell=config.cell
@@ -212,8 +215,14 @@ class AtomicData(torch_geometric.data.Data):
 
 
 def get_data_loader(
-    dataset: Sequence[AtomicData], batch_size: int, shuffle=True, drop_last=False,
+    dataset: Sequence[AtomicData],
+    batch_size: int,
+    shuffle=True,
+    drop_last=False,
 ) -> torch.utils.data.DataLoader:
     return torch_geometric.dataloader.DataLoader(
-        dataset=dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last,
+        dataset=dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        drop_last=drop_last,
     )

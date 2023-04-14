@@ -20,9 +20,9 @@ import mace
 from mace import data, modules, tools
 from mace.tools import torch_geometric
 from mace.tools.scripts_utils import (
+    LRScheduler,
     create_error_table,
     get_dataset_from_xyz,
-    LRScheduler,
 )
 
 
@@ -178,7 +178,9 @@ def main() -> None:
         assert (
             dipole_only is True
         ), "dipole loss can only be used with AtomicDipolesMACE model"
-        loss_fn = modules.DipoleSingleLoss(dipole_weight=args.dipole_weight,)
+        loss_fn = modules.DipoleSingleLoss(
+            dipole_weight=args.dipole_weight,
+        )
     elif args.loss == "energy_forces_dipole":
         assert dipole_only is False and compute_dipole is True
         loss_fn = modules.WeightedEnergyForcesDipoleLoss(

@@ -233,7 +233,9 @@ class MACE(torch.nn.Module):
                 edge_index=data["edge_index"],
             )
             node_feats = product(
-                node_feats=node_feats, sc=sc, node_attrs=data["node_attrs"],
+                node_feats=node_feats,
+                sc=sc,
+                node_attrs=data["node_attrs"],
             )
             node_energies = readout(node_feats, mji, data["edge_triplets"]).squeeze(-1)
             energy = scatter_sum(
@@ -274,7 +276,10 @@ class MACE(torch.nn.Module):
 @compile_mode("script")
 class ScaleShiftMACE(MACE):
     def __init__(
-        self, atomic_inter_scale: float, atomic_inter_shift: float, **kwargs,
+        self,
+        atomic_inter_scale: float,
+        atomic_inter_shift: float,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.scale_shift = ScaleShiftBlock(
@@ -516,7 +521,10 @@ class BOTNet(torch.nn.Module):
 
 class ScaleShiftBOTNet(BOTNet):
     def __init__(
-        self, atomic_inter_scale: float, atomic_inter_shift: float, **kwargs,
+        self,
+        atomic_inter_scale: float,
+        atomic_inter_shift: float,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.scale_shift = ScaleShiftBlock(
