@@ -29,10 +29,7 @@ class LinearNodeEmbeddingBlock(torch.nn.Module):
         super().__init__()
         self.linear = o3.Linear(irreps_in=irreps_in, irreps_out=irreps_out)
 
-    def forward(
-        self,
-        node_attrs: torch.Tensor,
-    ) -> torch.Tensor:  # [n_nodes, irreps]
+    def forward(self, node_attrs: torch.Tensor,) -> torch.Tensor:  # [n_nodes, irreps]
         return self.linear(node_attrs)
 
 
@@ -100,8 +97,7 @@ class PermutationReadoutBlock(torch.nn.Module):
         )
         self.linear_out = o3.Linear(irreps_in=irreps_mid, irreps_out=MLP_irreps)
         self.mlp = nn.FullyConnectedNet(
-            [MLP_irreps.num_irreps] + [32, 64, 128, 1],
-            torch.nn.functional.silu,
+            [MLP_irreps.num_irreps] + [32, 64, 128, 1], torch.nn.functional.silu,
         )
         self.simple_readout = NonLinearReadoutBlock(
             irreps_in=irreps_in_readout,
@@ -120,12 +116,11 @@ class PermutationReadoutBlock(torch.nn.Module):
         )
         y = self.linear(y)
         y = self.tp(y[bond_1], y[bond_2])  # [n_triplets, irreps]
+        print(y.shape)
         y = self.linear_out(y)
         y = self.mlp(y)  # [n_triplets, 1]
         y = scatter_sum(y, receiver, dim=0, dim_size=num_nodes)  # [n_nodes, irreps]
-        print("y", y)
         x = self.simple_readout(x, None, None)
-        print("x", x)
         return x + y  # [n_nodes, 1]
 
 
@@ -215,8 +210,7 @@ class RadialEmbeddingBlock(torch.nn.Module):
         self.out_dim = num_bessel
 
     def forward(
-        self,
-        edge_lengths: torch.Tensor,  # [n_edges, 1]
+        self, edge_lengths: torch.Tensor,  # [n_edges, 1]
     ):
         bessel = self.bessel_fn(edge_lengths)  # [n_edges, n_basis]
         cutoff = self.cutoff_fn(edge_lengths)  # [n_edges, 1]
@@ -244,10 +238,7 @@ class EquivariantProductBasisBlock(torch.nn.Module):
         )
         # Update linear
         self.linear = o3.Linear(
-            target_irreps,
-            target_irreps,
-            internal_weights=True,
-            shared_weights=True,
+            target_irreps, target_irreps, internal_weights=True, shared_weights=True,
         )
 
     def forward(
@@ -547,9 +538,7 @@ class RealAgnosticInteractionBlock(InteractionBlock):
         )
         # TensorProduct
         irreps_mid, instructions = tp_out_irreps_with_instructions(
-            self.node_feats_irreps,
-            self.edge_attrs_irreps,
-            self.target_irreps,
+            self.node_feats_irreps, self.edge_attrs_irreps, self.target_irreps,
         )
         self.irreps_mid = irreps_mid.simplify()
         self.conv_tp = o3.TensorProduct(
@@ -621,9 +610,7 @@ class RealAgnosticResidualInteractionBlock(InteractionBlock):
         )
         # TensorProduct
         irreps_mid, instructions = tp_out_irreps_with_instructions(
-            self.node_feats_irreps,
-            self.edge_attrs_irreps,
-            self.target_irreps,
+            self.node_feats_irreps, self.edge_attrs_irreps, self.target_irreps,
         )
         self.irreps_mid = irreps_mid.simplify()
         self.conv_tp = o3.TensorProduct(
