@@ -82,11 +82,12 @@ class PermutationReadoutBlock(torch.nn.Module):
         MLP_irreps_readout: o3.Irreps,
     ):
         super().__init__()
-        self.hidden_irreps = MLP_irreps
+        self.hidden_irreps = o3.Irreps(MLP_irreps)
         self.linear = o3.Linear(irreps_in=irreps_in, irreps_out=mid_irreps)
         irreps_mid, instructions = tp_out_irreps_with_instructions(
-            mid_irreps, mid_irreps, MLP_irreps
+            o3.Irreps(mid_irreps), o3.Irreps(mid_irreps), self.hidden_irreps
         )
+        print("irreps_mid", irreps_mid)
         self.tp = o3.TensorProduct(
             mid_irreps,
             mid_irreps,
@@ -95,13 +96,14 @@ class PermutationReadoutBlock(torch.nn.Module):
             shared_weights=True,
             internal_weights=True,
         )
-        self.linear_out = o3.Linear(irreps_in=irreps_mid, irreps_out=MLP_irreps)
+        self.linear_out = o3.Linear(irreps_in=irreps_mid, irreps_out=self.hidden_irreps)
         self.mlp = nn.FullyConnectedNet(
-            [MLP_irreps.num_irreps] + [32, 64, 128, 1], torch.nn.functional.silu,
+            [self.hidden_irreps.num_irreps] + [32, 64, 128, 1],
+            torch.nn.functional.silu,
         )
         self.simple_readout = NonLinearReadoutBlock(
             irreps_in=irreps_in_readout,
-            MLP_irreps=MLP_irreps_readout,
+            MLP_irreps=o3.Irreps(MLP_irreps_readout),
             gate=torch.nn.functional.silu,
         )
 
@@ -109,17 +111,21 @@ class PermutationReadoutBlock(torch.nn.Module):
         self, x: torch.Tensor, y: torch.Tensor, triplet_index: torch.Tensor
     ) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
         num_nodes = x.shape[0]
+        print("num_nodes", num_nodes)
         receiver, bond_1, bond_2 = (
             triplet_index[0, :],
             triplet_index[1, :],
             triplet_index[2, :],
         )
         y = self.linear(y)
+        print(y.shape)
+        print("max_triplet", bond_1.max())
         y = self.tp(y[bond_1], y[bond_2])  # [n_triplets, irreps]
         y = self.linear_out(y)
         y = self.mlp(y)  # [n_triplets, 1]
         y = scatter_sum(y, receiver, dim=0, dim_size=num_nodes)  # [n_nodes, irreps]
         x = self.simple_readout(x, None, None)
+        print("x", y)
         return x + y  # [n_nodes, 1]
 
 
