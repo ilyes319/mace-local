@@ -58,9 +58,7 @@ def compute_forces_virials(
     if compute_stress and virials is not None:
         cell = cell.view(-1, 3, 3)
         volume = torch.einsum(
-            "zi,zi->z",
-            cell[:, 0, :],
-            torch.cross(cell[:, 1, :], cell[:, 2, :], dim=1),
+            "zi,zi->z", cell[:, 0, :], torch.cross(cell[:, 1, :], cell[:, 2, :], dim=1),
         ).unsqueeze(-1)
         stress = virials / volume.view(-1, 1, 1)
     if forces is None:
@@ -81,16 +79,11 @@ def get_symmetric_displacement(
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     if cell is None:
         cell = torch.zeros(
-            num_graphs * 3,
-            3,
-            dtype=positions.dtype,
-            device=positions.device,
+            num_graphs * 3, 3, dtype=positions.dtype, device=positions.device,
         )
     sender = edge_index[0]
     displacement = torch.zeros(
-        (num_graphs, 3, 3),
-        dtype=positions.dtype,
-        device=positions.device,
+        (num_graphs, 3, 3), dtype=positions.dtype, device=positions.device,
     )
     displacement.requires_grad_(True)
     symmetric_displacement = 0.5 * (
@@ -101,11 +94,7 @@ def get_symmetric_displacement(
     )
     cell = cell.view(-1, 3, 3)
     cell = cell + torch.matmul(cell, symmetric_displacement)
-    shifts = torch.einsum(
-        "be,bec->bc",
-        unit_shifts,
-        cell[batch[sender]],
-    )
+    shifts = torch.einsum("be,bec->bc", unit_shifts, cell[batch[sender]],)
     return positions, shifts, displacement
 
 
@@ -159,8 +148,7 @@ def get_edge_vectors_and_lengths(
 
 
 def compute_mean_std_atomic_inter_energy(
-    data_loader: torch.utils.data.DataLoader,
-    atomic_energies: np.ndarray,
+    data_loader: torch.utils.data.DataLoader, atomic_energies: np.ndarray,
 ) -> Tuple[float, float]:
     atomic_energies_fn = AtomicEnergiesBlock(atomic_energies=atomic_energies)
 
@@ -184,8 +172,7 @@ def compute_mean_std_atomic_inter_energy(
 
 
 def compute_mean_rms_energy_forces(
-    data_loader: torch.utils.data.DataLoader,
-    atomic_energies: np.ndarray,
+    data_loader: torch.utils.data.DataLoader, atomic_energies: np.ndarray,
 ) -> Tuple[float, float]:
     atomic_energies_fn = AtomicEnergiesBlock(atomic_energies=atomic_energies)
 
@@ -248,3 +235,51 @@ def compute_fixed_charge_dipole(
     return scatter_sum(
         src=mu, index=batch.unsqueeze(-1), dim=0, dim_size=num_graphs
     )  # [N_graphs,3]
+
+
+def get_first_appearance(x: torch.Tensor) -> torch.Tensor:
+    _, idx, counts = torch.unique(
+        x, sorted=True, return_inverse=True, return_counts=True
+    )
+    _, ind_sorted = torch.sort(idx, stable=True)
+    cum_sum = counts.cumsum(0)
+    cum_sum = torch.cat((torch.tensor([0], device=x.device), cum_sum[:-1]))
+    first_indicies = ind_sorted[cum_sum]
+    return first_indicies
+
+
+def get_edge_triplets(edge_index: torch.Tensor, num_nodes: int,) -> torch.Tensor:
+    row, col = edge_index[0, :], edge_index[1, :]  # j->i
+    # For periodic boundary conditions, we need to consider repeated edges
+    test_matrix = torch.arange(num_nodes * num_nodes, device=edge_index.device).reshape(
+        num_nodes, num_nodes
+    )
+    test_matrix_values, inv = torch.unique(
+        test_matrix[edge_index[0], edge_index[1]], sorted=True, return_inverse=True
+    )
+    unique_inv, inv_inv = torch.unique(inv, sorted=False, return_inverse=True)
+    idx_1 = test_matrix_values // num_nodes
+    idx_2 = (test_matrix_values % num_nodes)[unique_inv]
+    v = get_first_appearance(inv_inv)
+    adj_t = torch.sparse_coo_tensor(
+        indices=torch.stack((idx_2, idx_1), dim=0),
+        values=v,
+        size=(num_nodes, num_nodes),
+    ).coalesce()
+    adj_t_dense = adj_t.to_dense().T
+    adj_t_row = adj_t_dense[row, :].to_sparse()
+    adj_t_dense_ones = adj_t_row.to_dense().clone()
+    adj_t_dense_ones[adj_t_dense_ones != 0] = 1
+    num_triplets = adj_t_dense_ones.sum(dim=1).to(torch.long)
+    # Node indices (k->j->i) for triplets.
+    idx_i = col.repeat_interleave(num_triplets)
+    idx_j = row.repeat_interleave(num_triplets)
+    idx_k = adj_t_row._indices()[1, :]
+    mask = idx_i != idx_k  # Remove i == k triplets.
+    idx_i, idx_j, idx_k = idx_i[mask], idx_j[mask], idx_k[mask]
+
+    # Edge indices (k-j, j->i) for triplets.
+    idx_kj = adj_t_row._values()[mask]
+    idx_ji = adj_t_row._indices()[0, :][mask]
+    out = torch.stack([idx_j, idx_kj - 1, idx_ji], dim=0)
+    return out

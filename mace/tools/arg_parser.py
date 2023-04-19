@@ -84,9 +84,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         ],
     )
     parser.add_argument(
-        "--r_max", help="distance cutoff (in Ang)", 
-        type=float, 
-        default=5.0
+        "--r_max", help="distance cutoff (in Ang)", type=float, default=5.0
     )
     parser.add_argument(
         "--num_radial_basis",
@@ -136,6 +134,24 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         default="16x0e",
     )
     parser.add_argument(
+        "--radial_MLP",
+        help="width of the radial MLP",
+        type=str,
+        default="[64, 64, 64]",
+    )
+    parser.add_argument(
+        "--equivariant_readout",
+        help="use permutation equivariant readout",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--equivariant_readout_irreps",
+        help="irreps for permutation equivariant readout",
+        type=str,
+        default="16x0e + 16x1o",
+    )
+    parser.add_argument(
         "--hidden_irreps",
         help="irreps for hidden node states",
         type=str,
@@ -143,16 +159,10 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
     )
     # add option to specify irreps by channel number and max L
     parser.add_argument(
-        "--num_channels",
-        help="number of embedding channels",
-        type=int,
-        default=None,
+        "--num_channels", help="number of embedding channels", type=int, default=None,
     )
     parser.add_argument(
-        "--max_L",
-        help="max L equivariance of the message",
-        type=int,
-        default=None,
+        "--max_L", help="max L equivariance of the message", type=int, default=None,
     )
     parser.add_argument(
         "--gate",
@@ -195,7 +205,9 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
 
     # Dataset
     parser.add_argument(
-        "--train_file", help="Training set file, format is .xyz or .h5", type=str, 
+        "--train_file",
+        help="Training set file, format is .xyz or .h5",
+        type=str,
         required=True,
     )
     parser.add_argument(
@@ -213,9 +225,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         required=False,
     )
     parser.add_argument(
-        "--test_file",
-        help="Test set .xyz pt .h5 file",
-        type=str,
+        "--test_file", help="Test set .xyz pt .h5 file", type=str,
     )
     parser.add_argument(
         "--test_dir",
@@ -225,16 +235,10 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         required=False,
     )
     parser.add_argument(
-        "--num_workers",
-        help="Number of workers for data loading",
-        type=int,
-        default=0,
+        "--num_workers", help="Number of workers for data loading", type=int, default=0,
     )
     parser.add_argument(
-        "--pin_memory",
-        help="Pin memory for data loading",
-        default=True, 
-        type=bool,
+        "--pin_memory", help="Pin memory for data loading", default=True, type=bool,
     )
     parser.add_argument(
         "--atomic_numbers",
@@ -320,17 +324,18 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
             "virials",
             "stress",
             "dipole",
+            "huber",
             "energy_forces_dipole",
         ],
     )
     parser.add_argument(
-        "--forces_weight", help="weight of forces loss", type=float, default=10.0
+        "--forces_weight", help="weight of forces loss", type=float, default=100.0
     )
     parser.add_argument(
         "--swa_forces_weight",
         help="weight of forces loss after starting swa",
         type=float,
-        default=1.0,
+        default=100.0,
     )
     parser.add_argument(
         "--energy_weight", help="weight of energy loss", type=float, default=1.0
@@ -373,6 +378,12 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         help="String of dictionary containing the weights for each config type",
         type=str,
         default='{"Default":1.0}',
+    )
+    parser.add_argument(
+        "--huber_delta",
+        help="delta parameter for huber loss",
+        type=float,
+        default=0.01,
     )
     parser.add_argument(
         "--optimizer",
@@ -484,22 +495,13 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         default=False,
     )
     parser.add_argument(
-        "--wandb_project",
-        help="Weights and Biases project name",
-        type=str,
-        default="",
+        "--wandb_project", help="Weights and Biases project name", type=str, default="",
     )
     parser.add_argument(
-        "--wandb_entity",
-        help="Weights and Biases entity name",
-        type=str,
-        default="",
+        "--wandb_entity", help="Weights and Biases entity name", type=str, default="",
     )
     parser.add_argument(
-        "--wandb_name",
-        help="Weights and Biases experiment name",
-        type=str,
-        default="",
+        "--wandb_name", help="Weights and Biases experiment name", type=str, default="",
     )
     parser.add_argument(
         "--wandb_log_hypers",
@@ -520,6 +522,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         ],
     )
     return parser
+
 
 def build_preprocess_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
@@ -545,22 +548,13 @@ def build_preprocess_arg_parser() -> argparse.ArgumentParser:
         required=False,
     )
     parser.add_argument(
-        "--test_file",
-        help="Test set xyz file",
-        type=str,
-        default=None,
-        required=False,
+        "--test_file", help="Test set xyz file", type=str, default=None, required=False,
     )
     parser.add_argument(
-        "--h5_prefix",
-        help="Prefix for h5 files when saving",
-        type=str,
-        default="",
+        "--h5_prefix", help="Prefix for h5 files when saving", type=str, default="",
     )
     parser.add_argument(
-        "--r_max", help="distance cutoff (in Ang)", 
-        type=float, 
-        default=5.0
+        "--r_max", help="distance cutoff (in Ang)", type=float, default=5.0
     )
     parser.add_argument(
         "--config_type_weights",
@@ -618,9 +612,9 @@ def build_preprocess_arg_parser() -> argparse.ArgumentParser:
         default=False,
     )
     parser.add_argument(
-        "--batch_size", 
-        help="batch size to compute average number of neighbours", 
-        type=int, 
+        "--batch_size",
+        help="batch size to compute average number of neighbours",
+        type=int,
         default=16,
     )
 
@@ -639,10 +633,7 @@ def build_preprocess_arg_parser() -> argparse.ArgumentParser:
         required=False,
     )
     parser.add_argument(
-        "--shuffle",
-        help="Shuffle the training dataset",
-        type=bool,
-        default=True,
+        "--shuffle", help="Shuffle the training dataset", type=bool, default=True,
     )
     parser.add_argument(
         "--seed",
